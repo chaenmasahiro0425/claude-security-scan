@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# どこから呼んでも同じフォルダの scan.py を実行する
+DIR="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")/.." && pwd)"
+exec python3 "$DIR/scan.py" "$@"

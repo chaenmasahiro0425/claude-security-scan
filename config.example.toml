@@ -1,0 +1,35 @@
+# security-scan の設定例。無くても動く（gh / aws / vercel / gog のログイン状態から対象を自動検出する）。
+# 使うときは ~/.config/security-scan/config.toml にコピーして編集する。秘密値は書かない。
+
+[mac]
+check_updates = true            # softwareupdate -l（30秒ほどかかる）
+
+[repos]
+# 省略時は ~/dev ~/work ~/projects ~/src ~/code ~/Developer ~/repos ~/git のうち存在するもの
+# roots = ["~/dev"]
+exclude = ["/_archive/", "/node_modules/"]
+max_depth = 6
+workers = 4
+gitleaks = true
+gitleaks_timeout = 1800
+osv = true
+# gitで管理していない置き場も、作業ツリーのまま秘密情報を探す
+secret_dirs = ["~/.claude/skills"]
+
+[web]
+vercel = true                   # vercel CLI にログインしていれば全チームの本番ドメインを自動で対象に入れる
+include_vercel_app = false
+vercel_env_detail = true
+max_sites = 150
+urls = []                       # Vercel 以外で公開しているサイト。例: ["example.com", "www.example.com"]
+exclude = []
+
+[aws]
+regions = ["ap-northeast-1", "us-east-1"]
+exclude_profiles = []
+
+[gmail]
+# 省略時は gog auth list で gmail を許可したアカウントを全部見る
+# accounts = ["you@example.com"]
+allowed_forwarding = []         # 意図して使っている転送先。ここに足すと「情報」扱いになる
+alert_days = 14

@@ -1,0 +1,6 @@
+reports/
+bin/gitleaks
+bin/osv-scanner
+__pycache__/
+config.toml
+.DS_Store
