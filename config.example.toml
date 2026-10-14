@@ -28,6 +28,20 @@ exclude = []
 regions = ["ap-northeast-1", "us-east-1"]
 exclude_profiles = []
 
+[gcp]
+# account = "you@example.com"   # 省略時は gcloud の現在のアカウント
+# projects = ["my-project"]     # 省略時は見える全プロジェクト（Cloud Resource Manager API が必要）
+exclude_projects = []
+
+[azure]
+exclude_subscriptions = []
+
+[cloudflare]
+token_env = "CLOUDFLARE_API_TOKEN"   # 読み取り専用トークン（Zone:Read / Zone Settings:Read / DNS:Read / Account Settings:Read）
+
+[supabase]
+token_env = "SUPABASE_ACCESS_TOKEN"  # あれば Security Advisor（RLS未設定など）を読む。無ければプロジェクト一覧だけ
+
 [gmail]
 # 省略時は gog auth list で gmail を許可したアカウントを全部見る
 # accounts = ["you@example.com"]

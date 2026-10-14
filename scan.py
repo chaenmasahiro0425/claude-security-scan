@@ -20,10 +20,11 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from sscan import aws, github, gmail, mac, report, repos, web  # noqa: E402
+from sscan import aws, azure, cloudflare, gcp, github, gmail, mac, report, repos, supabase, web  # noqa: E402
 from sscan.common import ROOT, WHOLE, Result, run  # noqa: E402
 
-MODULES = {"mac": mac, "repos": repos, "github": github, "web": web, "aws": aws, "gmail": gmail}
+MODULES = {"mac": mac, "repos": repos, "github": github, "web": web, "aws": aws, "gcp": gcp, "azure": azure,
+           "cloudflare": cloudflare, "supabase": supabase, "gmail": gmail}
 REPORTS = Path(os.environ.get("SECURITY_SCAN_REPORTS", ROOT / "reports"))
 CONFIG_CANDIDATES = [Path.home() / ".config/security-scan/config.toml", ROOT / "config.toml"]
 

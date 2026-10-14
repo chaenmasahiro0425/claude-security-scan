@@ -1,6 +1,6 @@
 ---
 name: security-scan
-description: 開発者のPC・手元のgitリポジトリ・GitHub・Vercelと公開サイト・AWS・Gmailを読み取り専用で横断スキャンし、重要度別のHTMLレポートと前回からの差分を出すスキル。「セキュリティチェックして」「セキュリティスキャン」「脆弱性ないか見て」「APIキー漏れてない？」「乗っ取られてないか確認」「新しく出たリスクだけ教えて」「毎週スキャンを設定して」等で使う。設定の変更・送信・削除はしない。直すときは1件ずつ利用者の承認を取る。
+description: 開発者のPC・手元のgitリポジトリ・GitHub・Vercelと公開サイト・クラウド（AWS / Google Cloud / Azure / Cloudflare / Supabase）・Gmailを読み取り専用で横断スキャンし、重要度別のHTMLレポートと前回からの差分を出すスキル。「セキュリティチェックして」「セキュリティスキャン」「脆弱性ないか見て」「APIキー漏れてない？」「乗っ取られてないか確認」「新しく出たリスクだけ教えて」「毎週スキャンを設定して」等で使う。設定の変更・送信・削除はしない。直すときは1件ずつ利用者の承認を取る。
 ---
 
 # security-scan
@@ -24,6 +24,10 @@ bash "$SKILL/scripts/install-tools.sh"  # gitleaks と osv-scanner を公式リ�
 | `github` | `gh auth login` 済み | 本人と所属orgの2FA・2FA必須設定・未設定メンバー・公開リポ作成権限・外部コラボレーター・Webhook・Dependabot / Secret scanning |
 | `web` | `vercel login`（任意） | Vercel全チームの本番ドメイン＋設定のURL: HTTPS・証明書期限・ヘッダー・.env/.git の露出・プレビュー保護・ブラウザに出る秘密っぽい環境変数 |
 | `aws` | aws CLI のプロファイル | （リージョン単位の検査は既定で東京とバージニア）ルートMFA・MFAなしIAMユーザー・放置キー・公開S3・CloudTrail・GuardDuty・全開放の管理/DBポート・公開RDS |
+| `gcp` | `gcloud auth login` | allUsers への権限・個人Gmailへのオーナー権限・サービスアカウントの鍵・公開バケット・全開放のファイアウォール / Cloud SQL |
+| `azure` | `az login` | 匿名公開のストレージ・HTTP許可・全開放のNSG / Azure SQL・Defender for Cloud |
+| `cloudflare` | `CLOUDFLARE_API_TOKEN`（読み取り専用） | SSL/TLSモード・Always Use HTTPS・最小TLS・DNSSEC・2FAの無いメンバー |
+| `supabase` | `supabase login`（診断は `SUPABASE_ACCESS_TOKEN`） | 公式 Security Advisor（RLSの無い公開テーブル等） |
 | `gmail` | [gog](https://github.com/steipete/gogcli) で認証済み | 自動転送・転送フィルタ・警告メールを隠すフィルタ・委任・最近のセキュリティ通知（件名のみ） |
 
 設定は無くても動く（ログイン済みのCLIから対象を自動検出）。絞りたいときだけ

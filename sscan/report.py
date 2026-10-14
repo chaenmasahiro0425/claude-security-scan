@@ -8,7 +8,8 @@ from pathlib import Path
 
 from .common import SEV_JA, SEVERITIES
 
-MOD_JA = {"mac": "Mac本体", "repos": "コード・リポジトリ", "github": "GitHub", "web": "Webサイト・Vercel", "aws": "AWS", "gmail": "メール・Googleアカウント"}
+MOD_JA = {"mac": "Mac本体", "repos": "コード・リポジトリ", "github": "GitHub", "web": "Webサイト・Vercel", "aws": "AWS", "gcp": "Google Cloud", "azure": "Azure",
+          "cloudflare": "Cloudflare", "supabase": "Supabase", "gmail": "メール・Googleアカウント"}
 COLORS = {"critical": "#c62828", "high": "#ef6c00", "medium": "#f9a825", "low": "#1e88e5", "info": "#78909c"}
 
 
