@@ -2,7 +2,7 @@
 
 **「セキュリティチェックして」の一言で、自分の開発環境をまるごと点検する Claude Code スキル。**
 
-Mac・手元の全gitリポジトリ・GitHub・Vercelと公開サイト・AWS・Gmail を**読み取り専用**で横断スキャンし、
+Mac・手元の全gitリポジトリ・GitHub・Vercelと公開サイト・クラウド（AWS / Google Cloud / Azure / Cloudflare / Supabase）・Gmail を**読み取り専用**で横断スキャンし、
 重要度別のレポートと「前回から増えたもの」を出します。設定の書き換え・送信・削除は一切しません。
 
 ![見本データのレポート](docs/report-demo.png)
@@ -29,9 +29,13 @@ Mac・手元の全gitリポジトリ・GitHub・Vercelと公開サイト・AWS�
 | GitHub | 本人と所属組織の2FA・2FA必須設定・未設定のメンバー・公開リポ作成権限・外部コラボレーター・Webhook・Dependabot / Secret scanning のアラート |
 | Webサイト・Vercel | 全チームの本番ドメイン: HTTPS・証明書期限・セキュリティヘッダー・`.env` / `.git` の露出・プレビューURLの保護・ブラウザに出てしまう秘密っぽい環境変数 |
 | AWS | ルートのMFA・MFAの無いIAMユーザー・放置されたアクセスキー・公開S3・CloudTrail・GuardDuty・全開放の管理/DBポート・公開RDS |
+| Google Cloud | allUsers に付いた権限・個人Gmailへのオーナー権限・サービスアカウントの鍵・公開バケット・全開放のファイアウォール・全開放のCloud SQL |
+| Azure | 匿名公開を許すストレージ・HTTPを受け付けるストレージ・全開放のNSG（管理/DBポート）・全開放のAzure SQL・Defender for Cloud |
+| Cloudflare | SSL/TLSのモード（Off / Flexible）・Always Use HTTPS・最小TLS・DNSSEC・2段階認証の無いメンバー |
+| Supabase | 公式 Security Advisor の診断（RLSの無い公開テーブル・security definer のビュー など） |
 | Gmail | 自動転送・転送フィルタ・警告メールを隠すフィルタ・委任・最近のセキュリティ通知（件名だけ） |
 
-入っているCLIだけを使います。無いものは「確認できなかった項目」に理由つきで出るだけで、止まりません。
+入っているCLIと、設定したAPIトークン（Cloudflare・Supabase）だけを使います。無いものは「確認できなかった項目」に理由つきで出るだけで、止まりません。
 **「確認できなかった」を「問題なし」と混同しない**のがこのツールの方針です。
 
 ## 導入
@@ -50,6 +54,10 @@ bash ~/.claude/skills/security-scan/scripts/install-tools.sh   # gitleaks と os
 | GitHub | `gh auth login` |
 | Vercel | `vercel login` |
 | AWS | `aws configure` または `aws sso login` |
+| Google Cloud | `gcloud auth login`（閲覧者 roles/viewer 相当の権限） |
+| Azure | `az login`（閲覧者 Reader 相当の権限） |
+| Cloudflare | 読み取り専用のAPIトークンを `CLOUDFLARE_API_TOKEN` に export |
+| Supabase | `supabase login`。RLSなどの診断は `SUPABASE_ACCESS_TOKEN` を export |
 | Gmail | [gog](https://github.com/steipete/gogcli) で `gog auth add you@example.com` |
 
 ## 使い方
@@ -74,7 +82,7 @@ bash ~/.claude/skills/security-scan/scripts/install-schedule.sh   # 毎週月曜
 
 ## 安全のための作り
 
-- **読み取りだけ**: gog は `--readonly`、AWS は describe / list / get、Webサイトへは GET だけ
+- **読み取りだけ**: gog は `--readonly`、各クラウドは list / get / describe と API の GET だけ、Webサイトへも GET だけ
 - **秘密の値を残さない**: gitleaks は `--redact`、Vercelの環境変数は名前と種類だけ、AWSのキーIDは末尾4桁、常駐プログラムの起動引数は記録しない。エラー文も伏せ字にしてから保存
 - **見えなかったものを「解消」にしない**: 取得に失敗した範囲（アカウント・組織・リポジトリ単位）の指摘は、前回との比較で「解消」にも「新規」にも数えない
 - レポートは自分のPCにだけ保存（権限700）。弱点の一覧なので共有に注意してください
@@ -90,6 +98,11 @@ bash ~/.claude/skills/security-scan/scripts/install-schedule.sh   # 毎週月曜
 - AWS のリージョン単位の検査（セキュリティグループ・RDS・GuardDuty）は、既定で東京（ap-northeast-1）とバージニア（us-east-1）だけです。ほかのリージョンを使っている場合は設定の `[aws] regions` に足してください
 - 外部サイトへの攻撃的な検査（総当たり・ファジング）はしません。自分が管理するサイトだけを対象にしてください
 - 検出は手がかりです。最終判断と修正は人が行ってください
+
+## 改善・追加を歓迎します
+
+オープンソースです。「このクラウドにも対応してほしい」「この検査は誤検知が多い」「こういう漏えいの入口も見たい」など、
+Issue・Pull Request で気軽に提案してください。手順は [CONTRIBUTING.md](CONTRIBUTING.md) にあります。
 
 ## ライセンス
 

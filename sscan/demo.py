@@ -28,6 +28,13 @@ def result() -> Result:
     a("aws", "critical", "ルートユーザーにMFAがない", "prod (000000000000)", "", "ルートでログインしMFAを登録")
     a("aws", "high", "インターネット全体に開いた管理/DBポート", "prod (000000000000) / ap-northeast-1 / sg-0example", "22(SSH)",
       "送信元を絞るか SSM Session Manager に切り替える")
+    a("supabase", "critical", "Security Advisor: RLS Disabled in Public", "shop-demo / public.orders",
+      "Table public.orders is public, but RLS has not been enabled.", "テーブルの RLS を有効にし、必要な行だけ読めるポリシーを書く")
+    a("gcp", "critical", "誰でも読めるCloud Storageバケット", "example-prod / gs://example-uploads", "roles/storage.objectViewer",
+      "allUsers を外し、公開アクセス防止を有効に")
+    a("azure", "high", "インターネット全体に開いた管理/DBポート", "Example Sub / nsg-web / allow-rdp", "3389(RDP)",
+      "送信元を絞るか、Azure Bastion に切り替える")
+    a("cloudflare", "medium", "SSL/TLS が Flexible（Cloudflare→サーバー間が暗号化されない）", "example.com", "", "Full (strict) に")
     a("gmail", "high", "全メールの自動転送がオン", "you@example.com", "転送先: unknown@example.net", "覚えがなければ即オフにしてパスワード変更")
     a("gmail", "info", "このアカウントから送信できる別アドレス（Send As）", "you@example.com", "info@example.com", "")
     for m, item in [("mac", "FileVault"), ("mac", "Gatekeeper"), ("github", "example-inc Dependabot"), ("aws", "prod (000000000000)"),
