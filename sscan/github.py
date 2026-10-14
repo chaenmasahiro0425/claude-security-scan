@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from urllib.parse import urlparse
 
-from .common import Result, run_json, short_err, tool
+from .common import WHOLE, Result, run_json, short_err, tool
 
 M = "github"
 
@@ -24,15 +24,15 @@ def _api(path: str, paginate: bool = False):
 def scan(cfg: dict) -> Result:
     r = Result()
     if not tool("gh"):
-        r.cov(M, "GitHub", "skip", "gh CLI が無い（brew install gh → gh auth login）")
+        r.cov(M, "GitHub", "skip", "gh CLI が無い（brew install gh → gh auth login）", blocks=WHOLE)
         return r
     me, err = _api("user")
     if not me:
-        r.cov(M, "gh 認証", "error", short_err(err) + "（gh auth login が必要）")
+        r.cov(M, "gh 認証", "error", short_err(err) + "（gh auth login が必要）", blocks=WHOLE)
         return r
     login = me["login"]
     if "two_factor_authentication" not in me:
-        r.cov(M, f"{login} 2FA", "skip", "トークンの権限では取得できない")
+        r.cov(M, f"{login} 2FA", "skip", "トークンの権限では取得できない", blocks=[("GitHubアカウントの2段階認証", "")])
     elif me.get("two_factor_authentication") is False:
         r.add(M, "critical", "GitHubアカウントの2段階認証がオフ", login, "", "Settings → Password and authentication で2FAを有効化")
     else:
@@ -60,13 +60,13 @@ def _repo_secret_alerts(r: Result, full: str):
 def _org(r: Result, org: str):
     info, err = _api(f"orgs/{org}")
     if not info:
-        r.cov(M, f"org {org}", "error", short_err(err))
+        r.cov(M, f"org {org}", "error", short_err(err), blocks=[("", org)])
         return
     if info.get("two_factor_requirement_enabled") is False:
         r.add(M, "high", "組織で2段階認証が必須になっていない", org, "",
               f"https://github.com/organizations/{org}/settings/security で「Require two-factor authentication」をオン（未設定メンバーは外れるので事前周知）")
     elif info.get("two_factor_requirement_enabled") is None:
-        r.cov(M, f"{org} 2FA必須設定", "skip", "owner権限がないため取得不可")
+        r.cov(M, f"{org} 2FA必須設定", "skip", "owner権限がないため取得不可", blocks=[("2段階認証が必須", org)])
     if info.get("members_can_create_public_repositories"):
         r.add(M, "medium", "メンバーが公開リポジトリを自由に作れる", org, "うっかり社内コードを公開する事故の入口",
               f"https://github.com/organizations/{org}/settings/member_privileges で public repository 作成をオフ")
@@ -94,7 +94,7 @@ def _org(r: Result, org: str):
     # Dependabot（orgまとめ取得）
     alerts, err = _api(f"orgs/{org}/dependabot/alerts?state=open&per_page=100", paginate=True)
     if alerts is None:
-        r.cov(M, f"{org} Dependabot", "skip", short_err(err))
+        r.cov(M, f"{org} Dependabot", "error", short_err(err), blocks=[("Dependabot", org + "/")])
     else:
         by_repo: dict[str, dict[str, int]] = {}
         for a in alerts:
@@ -111,7 +111,7 @@ def _org(r: Result, org: str):
 
     ss, err = _api(f"orgs/{org}/secret-scanning/alerts?state=open&per_page=100", paginate=True)
     if ss is None:
-        r.cov(M, f"{org} Secret scanning", "skip", "非公開リポはGitHub Advanced Security未契約だと使えない（ローカルのgitleaksで代替済み）")
+        r.cov(M, f"{org} Secret scanning", "skip", blocks=[("秘密情報の漏えいを検知", org + "/")], message= "非公開リポはGitHub Advanced Security未契約だと使えない（ローカルのgitleaksで代替済み）")
     else:
         for a in ss:
             full = a["repository"]["full_name"]

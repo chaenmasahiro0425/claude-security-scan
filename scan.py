@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from sscan import aws, github, gmail, mac, report, repos, web  # noqa: E402
-from sscan.common import ROOT, Result, run  # noqa: E402
+from sscan.common import ROOT, WHOLE, Result, run  # noqa: E402
 
 MODULES = {"mac": mac, "repos": repos, "github": github, "web": web, "aws": aws, "gmail": gmail}
 REPORTS = Path(os.environ.get("SECURITY_SCAN_REPORTS", ROOT / "reports"))
@@ -62,17 +62,16 @@ def main():
             res = Result()
             # 例外文に秘密が混ざりうるので型名と発生箇所だけ残す
             tb = traceback.extract_tb(e.__traceback__)[-1]
-            res.cov(m, "モジュール全体", "error", f"{type(e).__name__} at {Path(tb.filename).name}:{tb.lineno}")
+            res.cov(m, "モジュール全体", "error", f"{type(e).__name__} at {Path(tb.filename).name}:{tb.lineno}", blocks=WHOLE)
             print(f"  ERROR {type(e).__name__} at {Path(tb.filename).name}:{tb.lineno}", flush=True)
         total.extend(res)
         print(f"  {len(res.findings)}件 / {time.time() - t:.0f}秒", flush=True)
 
     findings = [f.to_dict() for f in total.findings]
     coverage = [c.to_dict() for c in total.coverage]
-    prev, prev_failed = (demo.previous(), set()) if a.demo else _previous(outdir, set(mods))
-    # 取得に失敗した対象があるモジュールは「解消」と判定しない（見えなかっただけの可能性がある）
-    failed = {c["module"] for c in coverage if c["status"] == "error"}
-    new, resolved = report.diff(findings, prev, failed, prev_failed)
+    prev, prev_cov = (demo.previous(), []) if a.demo else _previous(outdir, set(mods))
+    # 確認できなかった範囲は「解消」「新規」と判定しない（見えなかっただけの可能性がある）
+    new, resolved = report.diff(findings, prev, coverage, prev_cov)
     meta = {"demo": a.demo, "started": started.strftime("%Y-%m-%d %H:%M"), "elapsed": int((datetime.now() - started).total_seconds()), "modules": mods}
     report.write(outdir, meta, findings, coverage, new, resolved)
 
@@ -91,7 +90,10 @@ def main():
         run(["osascript", "-e", "on run argv", "-e", 'display notification (item 1 of argv) with title "セキュリティスキャン" sound name "Basso"',
              "-e", "end run", msg])
     if a.open:
-        run(["open", str(outdir / "report.html")])
+        opener = "open" if sys.platform == "darwin" else "xdg-open"
+        rc, _, err = run([opener, str(outdir / "report.html")])
+        if rc != 0:
+            print(f"ブラウザで開けませんでした（{opener}）: {outdir / 'report.html'}")
 
 
 def _previous(current: Path, mods: set[str]):
@@ -102,11 +104,11 @@ def _previous(current: Path, mods: set[str]):
         try:
             data = json.loads((d / "findings.json").read_text())
             if set(data["meta"]["modules"]) >= mods:
-                prev_failed = {c["module"] for c in data.get("coverage", []) if c.get("status") == "error"}
-                return [f for f in data["findings"] if f["module"] in mods and {"key", "severity"} <= f.keys()], prev_failed
+                return ([f for f in data["findings"] if f["module"] in mods and {"key", "severity", "title", "target"} <= f.keys()],
+                        data.get("coverage", []))
         except (json.JSONDecodeError, KeyError, TypeError):
             continue
-    return None, set()
+    return None, []
 
 
 if __name__ == "__main__":

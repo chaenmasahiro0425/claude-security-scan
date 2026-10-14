@@ -12,18 +12,28 @@ MOD_JA = {"mac": "Mac本体", "repos": "コード・リポジトリ", "github": 
 COLORS = {"critical": "#c62828", "high": "#ef6c00", "medium": "#f9a825", "low": "#1e88e5", "info": "#78909c"}
 
 
-def diff(findings: list[dict], prev: list[dict] | None, failed_modules: set[str] = frozenset(),
-         prev_failed: set[str] = frozenset()):
+def blocked(f: dict, coverage: list[dict]) -> bool:
+    """この指摘が、確認できなかった範囲（coverage の skip / error の blocks）に入るか。"""
+    for c in coverage:
+        if c.get("module") != f["module"] or c.get("status") == "ok":
+            continue
+        for title, target in c.get("blocks") or [("", c.get("item", ""))]:
+            if title == "*" or (title in f["title"] and target in f["target"]):
+                return True
+    return False
+
+
+def diff(findings: list[dict], prev: list[dict] | None, coverage: list[dict] = (), prev_coverage: list[dict] = ()):
     """新規＝前回に無いキー、または重要度が上がったもの。解消＝今回消えたもの。
-    取得に失敗した側のモジュールは比較しない（前回失敗→NEWにしない／今回失敗→解消にしない）。"""
+    確認できなかった範囲は比較しない（前回見えなかった→NEWにしない／今回見えなかった→解消にしない）。"""
     if prev is None:
         return set(), []
     order = {s: i for i, s in enumerate(SEVERITIES)}
     prev_sev = {f["key"]: f["severity"] for f in prev}
     cur_keys = {f["key"] for f in findings}
-    new = {f["key"] for f in findings if f["module"] not in prev_failed and (
+    new = {f["key"] for f in findings if not blocked(f, prev_coverage) and (
            f["key"] not in prev_sev or order[f["severity"]] < order.get(prev_sev[f["key"]], 99))}
-    resolved = [f for f in prev if f["key"] not in cur_keys and f["severity"] != "info" and f["module"] not in failed_modules]
+    resolved = [f for f in prev if f["key"] not in cur_keys and f["severity"] != "info" and not blocked(f, coverage)]
     return new, resolved
 
 

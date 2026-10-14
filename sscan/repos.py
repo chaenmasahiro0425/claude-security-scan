@@ -8,7 +8,7 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from .common import ROOT, Result, run, run_json, short_err, tool
+from .common import WHOLE, ROOT, Result, run, run_json, short_err, tool
 
 GITLEAKS = OSV = None
 
@@ -69,10 +69,10 @@ def scan(cfg: dict) -> Result:
     GITLEAKS, OSV = tool("gitleaks"), tool("osv-scanner")
     if not GITLEAKS:
         c = {**c, "gitleaks": False, "secret_dirs": []}
-        r.cov(M, "gitleaks", "skip", "未インストール（scripts/install-tools.sh で入る）。秘密情報の検査を省略")
+        r.cov(M, "gitleaks", "skip", "未インストール（scripts/install-tools.sh で入る）。秘密情報の検査を省略", blocks=[("秘密情報", "")])
     if not OSV:
         c = {**c, "osv": False}
-        r.cov(M, "osv-scanner", "skip", "未インストール（scripts/install-tools.sh で入る）。依存の脆弱性検査を省略")
+        r.cov(M, "osv-scanner", "skip", "未インストール（scripts/install-tools.sh で入る）。依存の脆弱性検査を省略", blocks=[("依存パッケージ", "")])
     roots = c.get("roots") or [d for d in DEFAULT_ROOTS if Path(os.path.expanduser(d)).is_dir()]
     repos = discover(roots, c.get("exclude", ["/_archive/", "/node_modules/"]), c.get("max_depth", 6))
     owners, public = _owners_and_public()
@@ -98,7 +98,7 @@ def _scan_dir(r: Result, d: Path):
         rc, _, err = run([GITLEAKS, "dir", str(d), "--redact", "--no-banner", "--log-level", "error",
                           "--max-target-megabytes", "2", "--report-format", "json", "--report-path", rp, "--exit-code", "0"], 600)
         if rc != 0:
-            r.cov(M, f"gitleaks {_label(d)}", "error", short_err(err[-200:]))
+            r.cov(M, f"gitleaks {_label(d)}", "error", short_err(err[-200:]), blocks=[("ローカルの置き場", _label(d))])
             return
         by_file: dict[str, list[str]] = {}
         own_reports = str(ROOT / "reports")
@@ -121,7 +121,7 @@ def _safe_repo(repo: Path, public: set[str], c: dict) -> Result:
         return _scan_repo(repo, public, c)
     except Exception as e:  # noqa: BLE001  1リポの失敗で全体を止めない
         r = Result()
-        r.cov(M, _label(repo), "error", type(e).__name__)
+        r.cov(M, _label(repo), "error", type(e).__name__, blocks=[("", _label(repo) + "  ")])
         return r
 
 
@@ -163,7 +163,7 @@ def _scan_repo(repo: Path, public: set[str], c: dict) -> Result:
                           "①そのキーを発行元で無効化・再発行 ②テスト用の偽値なら .gitleaksignore に登録 ③公開リポなら履歴からの除去も検討（git filter-repo）",
                           key=f"leak|{repo}|{rule}")
             else:
-                r.cov(M, f"gitleaks {_label(repo)}", "error", short_err(err[-200:]))
+                r.cov(M, f"gitleaks {_label(repo)}", "error", short_err(err[-200:]), blocks=[("コミット履歴", _label(repo) + "  ")])
         finally:
             Path(rp).unlink(missing_ok=True)
 
@@ -176,7 +176,7 @@ def _scan_repo(repo: Path, public: set[str], c: dict) -> Result:
         except json.JSONDecodeError:
             data = None
         if data is None and rc not in (0, 128) and "No package sources found" not in (err + out):
-            r.cov(M, f"osv {_label(repo)}", "error", short_err(err[-200:]))
+            r.cov(M, f"osv {_label(repo)}", "error", short_err(err[-200:]), blocks=[("依存パッケージ", _label(repo) + "  ")])
         if data:
             _osv(r, data, where, is_public, inactive)
     return r

@@ -5,7 +5,7 @@ import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
-from .common import Result, run, run_json, short_err, tool
+from .common import WHOLE, Result, run, run_json, short_err, tool
 
 M = "aws"
 RISKY_PORTS = {22: "SSH", 3389: "RDP", 3306: "MySQL", 5432: "PostgreSQL", 6379: "Redis", 27017: "MongoDB", 9200: "Elasticsearch"}
@@ -22,7 +22,7 @@ def scan(cfg: dict) -> Result:
     r = Result()
     c = cfg.get("aws", {})
     if not tool("aws"):
-        r.cov(M, "AWS", "skip", "aws CLI が無い")
+        r.cov(M, "AWS", "skip", "aws CLI が無い", blocks=WHOLE)
         return r
     _, out, _ = run(["aws", "configure", "list-profiles"])
     profiles = [p for p in out.split() if p not in c.get("exclude_profiles", [])]
@@ -61,7 +61,7 @@ def _account(r: Result, p: str, acct: str, regions: list[str]):
         if s.get("AccountAccessKeysPresent"):
             r.add(M, "critical", "ルートユーザーのアクセスキーが存在する", tgt, "", "IAM → セキュリティ認証情報 からルートのアクセスキーを削除")
     else:
-        r.cov(M, f"{tgt} IAM", "skip", short_err(err))
+        r.cov(M, f"{tgt} IAM", "skip", short_err(err), blocks=[("ルートユーザー", tgt)])
 
     users, _ = _aws(p, "iam", "list-users")
     now = datetime.now(timezone.utc)
@@ -74,7 +74,7 @@ def _account(r: Result, p: str, acct: str, regions: list[str]):
             age = (now - datetime.fromisoformat(k["CreateDate"].replace("Z", "+00:00"))).days
             last, lerr = _aws(p, "iam", "get-access-key-last-used", "--access-key-id", k["AccessKeyId"])
             if last is None:
-                r.cov(M, f"{tgt} / {name} キー最終使用", "error", lerr)
+                r.cov(M, f"{tgt} / {name} キー最終使用", "error", lerr, blocks=[("アクセスキー", f"{tgt} / {name}")])
                 continue
             used = ((last or {}).get("AccessKeyLastUsed") or {}).get("LastUsedDate")
             unused_days = (now - datetime.fromisoformat(used.replace("Z", "+00:00"))).days if used else None
@@ -90,7 +90,7 @@ def _account(r: Result, p: str, acct: str, regions: list[str]):
         if login:
             mfa, merr = _aws(p, "iam", "list-mfa-devices", "--user-name", name)
             if mfa is None:
-                r.cov(M, f"{tgt} / {name} MFA", "error", merr)
+                r.cov(M, f"{tgt} / {name} MFA", "error", merr, blocks=[("MFAがないIAM", f"{tgt} / {name}")])
             elif not mfa.get("MFADevices"):
                 r.add(M, "high", "コンソールログインできるのにMFAがないIAMユーザー", f"{tgt} / {name}", "", "MFAを登録させるか、コンソールパスワードを削除")
 

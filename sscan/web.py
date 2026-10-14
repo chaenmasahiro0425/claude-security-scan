@@ -12,7 +12,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
-from .common import Result, run_json, short_err, tool
+from .common import WHOLE, Result, run_json, short_err, tool
 
 M = "web"
 UA = "Mozilla/5.0 (security-scan; owner self-check)"
@@ -50,7 +50,7 @@ def scan(cfg: dict) -> Result:
     if c.get("vercel", True) and tool("vercel"):
         hosts |= _vercel_scan(r, c)
     elif c.get("vercel", True):
-        r.cov(M, "Vercel", "skip", "vercel CLI が無い。公開サイトは config の urls だけを見る")
+        r.cov(M, "Vercel", "skip", "vercel CLI が無い。公開サイトは config の urls だけを見る", blocks=WHOLE)
     hosts = {h.replace("https://", "").replace("http://", "").strip("/") for h in hosts}
     hosts = {h for h in hosts if h and not any(x in h for x in c.get("exclude", []))}
     hosts = sorted(hosts)[: c.get("max_sites", 120)]
@@ -67,7 +67,7 @@ def _vercel_scan(r: Result, c: dict) -> set[str]:
     hosts: set[str] = set()
     teams, err = run_json(["vercel", "api", "/v2/teams"], 60)
     if not teams:
-        r.cov(M, "Vercel", "error", short_err(err) + "（vercel login が必要）")
+        r.cov(M, "Vercel", "error", short_err(err) + "（vercel login が必要）", blocks=WHOLE)
         return hosts
     for t in teams.get("teams", []):
         tid, slug = t["id"], t["slug"]
@@ -75,7 +75,7 @@ def _vercel_scan(r: Result, c: dict) -> set[str]:
         while True:
             data, err = _vercel(f"/v9/projects?limit=100" + (f"&until={nxt}" if nxt else ""), tid)
             if not data:
-                r.cov(M, f"Vercel {slug}", "error", short_err(err))
+                r.cov(M, f"Vercel {slug}", "error", short_err(err), blocks=WHOLE)
                 break
             projects += data.get("projects", [])
             nxt = (data.get("pagination") or {}).get("next")
@@ -121,7 +121,7 @@ def _env_detail(team: str, tid: str, p: dict) -> Result:
     r = Result()
     data, err = _vercel(f"/v10/projects/{p['id']}/env", tid)
     if data is None:
-        r.cov(M, f"Vercel {team}/{p['name']} env", "error", err)
+        r.cov(M, f"Vercel {team}/{p['name']} env", "error", err, blocks=[("環境変数", f"Vercel {team} / {p['name']} /")])
     for e in (data or {}).get("envs", []):
         _env_check(r, team, p["name"], e)
     return r
@@ -155,7 +155,7 @@ def _site(host: str) -> Result:
     except ssl.SSLCertVerificationError as e:
         r.add(M, "high", "SSL証明書が不正（期限切れ・ドメイン不一致など）", host, str(e)[:200], "証明書を正しく発行し直す")
     except Exception as e:  # noqa: BLE001
-        r.cov(M, f"{host} 証明書", "error", str(e)[:150])
+        r.cov(M, f"{host} 証明書", "error", str(e)[:150], blocks=[("SSL証明書", host)])
 
     status, headers, body, final = _get(base)
     if status is None:

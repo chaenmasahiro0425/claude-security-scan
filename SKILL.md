@@ -23,7 +23,7 @@ bash "$SKILL/scripts/install-tools.sh"  # gitleaks と osv-scanner を公式リ�
 | `repos` | gitleaks / osv-scanner | 手元の全gitリポジトリのコミット履歴にある秘密情報（値は伏せ字）・.env のgit登録・依存パッケージの既知脆弱性 |
 | `github` | `gh auth login` 済み | 本人と所属orgの2FA・2FA必須設定・未設定メンバー・公開リポ作成権限・外部コラボレーター・Webhook・Dependabot / Secret scanning |
 | `web` | `vercel login`（任意） | Vercel全チームの本番ドメイン＋設定のURL: HTTPS・証明書期限・ヘッダー・.env/.git の露出・プレビュー保護・ブラウザに出る秘密っぽい環境変数 |
-| `aws` | aws CLI のプロファイル | ルートMFA・MFAなしIAMユーザー・放置キー・公開S3・CloudTrail・GuardDuty・全開放の管理/DBポート・公開RDS |
+| `aws` | aws CLI のプロファイル | （リージョン単位の検査は既定で東京とバージニア）ルートMFA・MFAなしIAMユーザー・放置キー・公開S3・CloudTrail・GuardDuty・全開放の管理/DBポート・公開RDS |
 | `gmail` | [gog](https://github.com/steipete/gogcli) で認証済み | 自動転送・転送フィルタ・警告メールを隠すフィルタ・委任・最近のセキュリティ通知（件名のみ） |
 
 設定は無くても動く（ログイン済みのCLIから対象を自動検出）。絞りたいときだけ

@@ -8,7 +8,7 @@ import re
 import stat
 from pathlib import Path
 
-from .common import Result, run, short_err
+from .common import WHOLE, Result, run, short_err
 
 M = "mac"
 HOME = Path.home()
@@ -32,7 +32,7 @@ def scan(cfg: dict) -> Result:
 def _filevault(r: Result):
     rc, out, err = run(["fdesetup", "status"])
     if rc != 0 or "FileVault is" not in out:
-        r.cov(M, "FileVault", "error", short_err(err or out))
+        r.cov(M, "FileVault", "error", short_err(err or out), blocks=[("FileVault", "")])
     elif "FileVault is On" in out:
         r.cov(M, "FileVault", "ok")
     else:
@@ -45,7 +45,7 @@ def _firewall(r: Result):
     fw = "/usr/libexec/ApplicationFirewall/socketfilterfw"
     _, out, _ = run([fw, "--getglobalstate"])
     if "State =" not in out:
-        r.cov(M, "ファイアウォール", "error", short_err(out))
+        r.cov(M, "ファイアウォール", "error", short_err(out), blocks=[("ファイアウォール", ""), ("ステルス", "")])
     elif "enabled" in out.lower() and "disabled" not in out.lower():
         r.cov(M, "ファイアウォール", "ok")
     else:
@@ -60,7 +60,7 @@ def _firewall(r: Result):
 def _gatekeeper_sip(r: Result):
     rc, out, err = run(["spctl", "--status"])
     if "assessments" not in out:
-        r.cov(M, "Gatekeeper", "error", short_err(err or out))
+        r.cov(M, "Gatekeeper", "error", short_err(err or out), blocks=[("Gatekeeper", "")])
     elif "enabled" in out:
         r.cov(M, "Gatekeeper", "ok")
     else:
@@ -68,7 +68,7 @@ def _gatekeeper_sip(r: Result):
               "ターミナルで sudo spctl --master-enable を本人が実行する")
     rc, out, err = run(["csrutil", "status"])
     if "System Integrity Protection status" not in out:
-        r.cov(M, "SIP", "error", short_err(err or out))
+        r.cov(M, "SIP", "error", short_err(err or out), blocks=[("SIP", "")])
     elif "enabled" in out:
         r.cov(M, "SIP", "ok")
     else:
@@ -89,7 +89,7 @@ def _autologin_screenlock(r: Result):
     elif "immediate" in text or "delay" in text or "enabled" in text:
         r.cov(M, "画面ロック", "ok", (out + err).strip()[-120:])
     else:
-        r.cov(M, "画面ロック", "error", "状態を判定できない")
+        r.cov(M, "画面ロック", "error", "状態を判定できない", blocks=[("パスワード要求", "")])
 
 
 def _updates(r: Result):
@@ -100,7 +100,7 @@ def _updates(r: Result):
         return
     labels = re.findall(r"\* Label: (.+)", text)
     if not labels:
-        r.cov(M, "macOSアップデート", "error", text.strip()[-200:])
+        r.cov(M, "macOSアップデート", "error", short_err(text.strip()[-200:]), blocks=[("アップデート", "")])
         return
     sec = [l for l in labels if re.search(r"macOS|Security|Rapid|XProtect|Background Security", l, re.I)]
     sev = "high" if sec else "medium"
@@ -207,7 +207,7 @@ def _launch_items(r: Result):
         for p in sorted(d.glob("*.plist")):
             data = _load_plist(p)
             if data is None:
-                r.cov(M, f"常駐 {p.name}", "error", "plistを読めない")
+                r.cov(M, f"常駐 {p.name}", "error", "plistを読めない", blocks=[("常駐", p.name)])
                 continue
             prog = data.get("Program") or (data.get("ProgramArguments") or [""])[0]
             label = data.get("Label", p.stem)

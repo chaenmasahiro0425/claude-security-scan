@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import re
 
-from .common import Result, run, run_json, short_err, tool
+from .common import WHOLE, Result, run, run_json, short_err, tool
 
 M = "gmail"
 ALERT_WORDS = re.compile(r"(ログイン|サインイン|sign-?in|新しいデバイス|new device|パスワード|password|アクセス|access|"
@@ -45,11 +45,11 @@ def scan(cfg: dict) -> Result:
     r = Result()
     c = cfg.get("gmail", {})
     if not tool("gog"):
-        r.cov(M, "Gmail", "skip", "gog CLI が無い（https://github.com/steipete/gogcli）")
+        r.cov(M, "Gmail", "skip", "gog CLI が無い（https://github.com/steipete/gogcli）", blocks=WHOLE)
         return r
     accounts = c.get("accounts") or _gog_accounts()
     if not accounts:
-        r.cov(M, "Gmail", "skip", "gog にGmailで認証済みのアカウントが無い（gog auth add <メール>）")
+        r.cov(M, "Gmail", "skip", "gog にGmailで認証済みのアカウントが無い（gog auth add <メール>）", blocks=WHOLE)
         return r
     allowed_fwd = {a.lower() for a in c.get("allowed_forwarding", [])}
     for acct in accounts:
@@ -63,7 +63,7 @@ def scan(cfg: dict) -> Result:
     for acct in admins:
         data, err = _gog(acct, "admin", "users", "list", "--max", "1")
         if data is None:
-            r.cov(M, f"Workspace管理 ({acct.split('@')[-1]})", "skip",
+            r.cov(M, f"Workspace管理 ({acct.split('@')[-1]})", "skip", blocks=[], message=
                   "Admin APIはドメイン全体の委任が必要。2段階認証の強制状況・外部共有・連携アプリは "
                   "https://admin.google.com/ac/security/health （セキュリティの状況ページ）で手動確認")
     return r
@@ -83,7 +83,7 @@ def _settings(r: Result, acct: str, allowed: set[str]) -> bool:
 
     fw, err = _gog(acct, "gmail", "settings", "forwarding", "list")
     if fw is None:
-        r.cov(M, f"{acct} 転送先", "error", short_err(err))
+        r.cov(M, f"{acct} 転送先", "error", short_err(err), blocks=[("転送先", acct)])
     for f in (fw or {}).get("forwardingAddresses", []):
         dest = f.get("forwardingEmail", "")
         if dest.lower() not in allowed:
@@ -92,7 +92,7 @@ def _settings(r: Result, acct: str, allowed: set[str]) -> bool:
 
     flt, err = _gog(acct, "gmail", "settings", "filters", "list")
     if flt is None:
-        r.cov(M, f"{acct} フィルタ", "error", short_err(err))
+        r.cov(M, f"{acct} フィルタ", "error", short_err(err), blocks=[("フィルタ", acct)])
     for f in (flt or {}).get("filters", []):
         act, crit = f.get("action", {}), f.get("criteria", {})
         crit_s = " ".join(f"{k}:{v}" for k, v in crit.items())

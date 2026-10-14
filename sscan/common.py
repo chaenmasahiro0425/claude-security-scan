@@ -46,12 +46,22 @@ class Finding:
         return asdict(self)
 
 
+WHOLE = [("*", "*")]  # モジュール全体が見えていない
+
+
 @dataclass
 class Coverage:
     module: str
     item: str
     status: str  # ok / skip / error
     message: str = ""
+    # この確認が通らなかったときに「解消」「新規」の判定から外す指摘の範囲。
+    # (タイトルに含む文字列, 対象に含む文字列) の組。省略時は対象に item を含む指摘。("*","*") はモジュール全体
+    blocks: list = None
+
+    def __post_init__(self):
+        if self.blocks is None:
+            self.blocks = [] if self.status == "ok" else [("", self.item)]
 
     def to_dict(self):
         return asdict(self)
