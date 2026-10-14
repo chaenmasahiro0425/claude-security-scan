@@ -5,7 +5,7 @@ from .common import WHOLE, Result, run_json, short_err, tool
 
 M = "azure"
 RISKY_PORTS = {22: "SSH", 3389: "RDP", 1433: "SQL Server", 3306: "MySQL", 5432: "PostgreSQL", 6379: "Redis", 27017: "MongoDB"}
-ANY_SRC = ("*", "0.0.0.0/0", "Internet", "Any")
+ANY_SRC = ("*", "0.0.0.0/0", "::/0", "Internet", "Any")
 
 
 def _az(*args, sub: str | None = None, timeout: int = 120):
@@ -71,8 +71,10 @@ def _sub(r: Result, sid: str, name: str):
     if nsgs is None:
         r.cov(M, f"{name} NSG", "error", short_err(err), blocks=[("ポート", tgt)])
     for g in nsgs or []:
-        for rule in g.get("securityRules", []):
+        for rule in g.get("securityRules") or []:
             if rule.get("direction") != "Inbound" or rule.get("access") != "Allow":
+                continue
+            if str(rule.get("protocol", "*")).lower() not in ("tcp", "*"):  # 管理/DBポートはTCP
                 continue
             srcs = [rule.get("sourceAddressPrefix")] + (rule.get("sourceAddressPrefixes") or [])
             if not any(s in ANY_SRC for s in srcs if s):
@@ -88,7 +90,11 @@ def _sub(r: Result, sid: str, name: str):
     if sqls is None:
         r.cov(M, f"{name} SQL", "error", short_err(err), blocks=[("SQL", tgt)])
     for s in sqls or []:
-        rules, _ = _az("sql", "server", "firewall-rule", "list", "--server", s["name"], "--resource-group", s["resourceGroup"], sub=sid)
+        if not s.get("name") or not s.get("resourceGroup"):
+            continue
+        rules, ferr = _az("sql", "server", "firewall-rule", "list", "--server", s["name"], "--resource-group", s["resourceGroup"], sub=sid)
+        if rules is None:
+            r.cov(M, f"{name} SQL {s['name']} ファイアウォール", "error", short_err(ferr), blocks=[("SQL", f"{tgt} / {s['name']}")])
         for fr in rules or []:
             if fr.get("startIpAddress") == "0.0.0.0" and fr.get("endIpAddress") == "255.255.255.255":
                 r.add(M, "high", "Azure SQL がインターネット全体から接続を受け付ける", f"{tgt} / {s['name']}", fr.get("name", ""),
@@ -97,7 +103,9 @@ def _sub(r: Result, sid: str, name: str):
             r.add(M, "low", "Azure SQL が古いTLSを許可", f"{tgt} / {s['name']}", s.get("minimalTlsVersion"), "最小TLSを1.2に", key=f"az-sqltls|{s['name']}")
 
     # Microsoft Defender for Cloud：主要な保護が無料プランのまま
-    prices, _ = _az("security", "pricing", "list", sub=sid)
+    prices, perr = _az("security", "pricing", "list", sub=sid)
+    if prices is None:
+        r.cov(M, f"{name} Defender", "skip", short_err(perr), blocks=[("Defender", tgt)])
     items = (prices or {}).get("value", prices) if isinstance(prices, dict) else prices
     free = [p.get("name") for p in items or [] if p.get("pricingTier") == "Free" and p.get("name") in ("VirtualMachines", "StorageAccounts", "SqlServers", "KeyVaults", "AppServices")]
     if free:

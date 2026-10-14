@@ -61,11 +61,10 @@ def scan(cfg: dict) -> Result:
     return r
 
 
-def _skip_or_error(r: Result, item: str, err: str, blocks: list, needed: bool = False):
-    if err == "API_NOT_ENABLED":
-        if needed:  # IAM は「使っていない」ではなく「読めない」
-            r.cov(M, item, "skip", "Cloud Resource Manager API が無効で読めない", blocks=blocks)
-        return  # そのサービスを使っていないだけ
+def _skip_or_error(r: Result, item: str, err: str, blocks: list):
+    if err == "API_NOT_ENABLED":  # 使っていない可能性が高いが、読めていないので比較からは外す
+        r.cov(M, item, "skip", "APIが無効（このサービスを使っていなければ問題なし）", blocks=blocks)
+        return
     r.cov(M, item, "skip" if err.startswith("権限不足") else "error", err, blocks=blocks)
 
 
@@ -74,10 +73,10 @@ def _project(c: dict, pid: str) -> Result:
     # プロジェクトのIAM：誰でも（allUsers）に権限が付いていないか
     pol, err = _g(c, "projects", "get-iam-policy", pid)
     if pol is None:
-        _skip_or_error(r, f"{pid} IAM", err, [("権限", pid)], needed=True)
+        _skip_or_error(r, f"{pid} IAM", err, [("権限", pid)])
     else:
-        for b in pol.get("bindings", []):
-            pub = [m for m in b.get("members", []) if m in PUBLIC]
+        for b in pol.get("bindings") or []:
+            pub = [m for m in b.get("members") or [] if m in PUBLIC]
             if pub:
                 r.add(M, "critical", "プロジェクト全体の権限がインターネット全体に付与されている", f"{pid}",
                       f"{b.get('role')} → {', '.join(pub)}", "allUsers / allAuthenticatedUsers の付与を外す", key=f"gcp-iam-public|{pid}|{b.get('role')}")
@@ -92,10 +91,12 @@ def _project(c: dict, pid: str) -> Result:
     if sas is None:
         _skip_or_error(r, f"{pid} サービスアカウント", err, [("サービスアカウント", pid)])
     now = datetime.now(timezone.utc)
-    for sa in sas or []:
-        keys, _ = _g(c, "iam", "service-accounts", "keys", "list", f"--iam-account={sa['email']}", "--managed-by=user", f"--project={pid}")
+    for sa in [x for x in sas or [] if isinstance(x, dict) and x.get("email")]:
+        keys, kerr = _g(c, "iam", "service-accounts", "keys", "list", f"--iam-account={sa['email']}", "--managed-by=user", f"--project={pid}")
+        if keys is None:
+            _skip_or_error(r, f"{pid} {sa['email']} 鍵", kerr, [("サービスアカウント", f"{pid} / {sa['email']}")])
         for k in keys or []:
-            created = k.get("validAfterTime", "")
+            created = k.get("validAfterTime") or ""
             try:
                 age = (now - datetime.fromisoformat(created.replace("Z", "+00:00"))).days
             except ValueError:
@@ -113,7 +114,9 @@ def _project(c: dict, pid: str) -> Result:
         name = bk.get("name", "")
         if bk.get("public_access_prevention") == "enforced":
             continue
-        bp, _ = _g(c, "storage", "buckets", "get-iam-policy", f"gs://{name}")
+        bp, berr = _g(c, "storage", "buckets", "get-iam-policy", f"gs://{name}")
+        if bp is None:
+            _skip_or_error(r, f"{pid} gs://{name} 権限", berr, [("バケット", f"gs://{name}")])
         for b in (bp or {}).get("bindings", []):
             if any(m in PUBLIC for m in b.get("members", [])):
                 r.add(M, "critical", "誰でも読めるCloud Storageバケット", f"{pid} / gs://{name}", b.get("role", ""),
@@ -124,16 +127,19 @@ def _project(c: dict, pid: str) -> Result:
     if fws is None:
         _skip_or_error(r, f"{pid} ファイアウォール", err, [("ポート", pid)])
     for fw in fws or []:
-        if fw.get("direction") != "INGRESS" or fw.get("disabled") or "0.0.0.0/0" not in fw.get("sourceRanges", []):
+        if fw.get("direction") != "INGRESS" or fw.get("disabled") or not (set(fw.get("sourceRanges") or []) & {"0.0.0.0/0", "::/0"}):
             continue
         hits = []
-        for a in fw.get("allowed", []):
+        for a in fw.get("allowed") or []:
             ports = a.get("ports") or ["0-65535"]
             if a.get("IPProtocol") not in ("tcp", "all"):
                 continue
             for pr in ports:
-                lo, _, hi = pr.partition("-")
-                lo, hi = int(lo), int(hi or lo)
+                lo, _, hi = str(pr).partition("-")
+                try:
+                    lo, hi = int(lo), int(hi or lo)
+                except ValueError:
+                    continue
                 hits += [f"{p}({n})" for p, n in RISKY_PORTS.items() if lo <= p <= hi]
         if hits:
             r.add(M, "high", "インターネット全体に開いた管理/DBポート", f"{pid} / {fw.get('name')}", ", ".join(sorted(set(hits))),
@@ -145,8 +151,8 @@ def _project(c: dict, pid: str) -> Result:
         _skip_or_error(r, f"{pid} Cloud SQL", err, [("Cloud SQL", pid)])
     for s in sqls or []:
         ip = (s.get("settings") or {}).get("ipConfiguration") or {}
-        nets = [n.get("value") for n in ip.get("authorizedNetworks", [])]
-        if ip.get("ipv4Enabled") and "0.0.0.0/0" in nets:
+        nets = [n.get("value") for n in ip.get("authorizedNetworks") or []]
+        if ip.get("ipv4Enabled") and ("0.0.0.0/0" in nets or "::/0" in nets):
             r.add(M, "high", "Cloud SQL がインターネット全体から接続を受け付ける", f"{pid} / {s.get('name')}", "authorizedNetworks に 0.0.0.0/0",
                   "許可ネットワークを絞るか、Cloud SQL Auth Proxy / 非公開IPに切り替える", key=f"gcp-sql|{pid}|{s.get('name')}")
         if ip.get("ipv4Enabled") and not ip.get("requireSsl") and ip.get("sslMode") in (None, "ALLOW_UNENCRYPTED_AND_ENCRYPTED"):

@@ -44,25 +44,31 @@ def scan(cfg: dict) -> Result:
     if projects is None:
         r.cov(M, "Supabase", "error", short_err(err) + "（supabase login か トークンを確認）", blocks=WHOLE)
         return r
+    projects = [p for p in projects if isinstance(p, dict)]
     active = [p for p in projects if str(p.get("status", "")).startswith("ACTIVE")]
-    r.cov(M, "対象プロジェクト", "ok", f"稼働中 {len(active)}件（停止中 {len(projects) - len(active)}件）")
+    unknown = [p for p in projects if not p.get("status")]
+    active += unknown  # 状態が分からないものは稼働中として調べる
+    r.cov(M, "対象プロジェクト", "ok", f"{len(projects)}件（うち調べる対象 {len(active)}件）")
     if not token:
         r.cov(M, "Security Advisor", "skip",
               "RLS等の診断には SUPABASE_ACCESS_TOKEN が必要（ダッシュボード → Account → Access Tokens で作成し export）", blocks=WHOLE)
         return r
     for p in active:
-        ref, name = p.get("ref") or p.get("id"), p.get("name")
+        ref = p.get("ref") or p.get("id")
+        name = p.get("name") or ref
+        if not ref:
+            continue
         data, err = _get(f"/projects/{ref}/advisors/security", token)
         if data is None:
             r.cov(M, f"{name} advisor", "error", err, blocks=[("", name)])
             continue
-        for lint in data.get("lints", []):
+        for lint in [x for x in (data.get("lints") if isinstance(data, dict) else None) or [] if isinstance(x, dict)]:
             sev = "critical" if lint.get("name") in CRITICAL and lint.get("level") == "ERROR" else LEVEL.get(lint.get("level"), "low")
             meta = lint.get("metadata") or {}
             obj = ".".join(x for x in (meta.get("schema"), meta.get("name")) if x)
             r.add(M, sev, f"Security Advisor: {lint.get('title') or lint.get('name')}", f"{name} / {obj or lint.get('name')}",
                   (lint.get("detail") or lint.get("description") or "")[:300],
                   (lint.get("remediation") or "ダッシュボードの Advisors → Security で確認"),
-                  key=f"sb|{ref}|{lint.get('cache_key') or lint.get('name') + obj}")
+                  key=f"sb|{ref}|{lint.get('cache_key') or (lint.get('name') or '?') + obj}")
         r.cov(M, name, "ok")
     return r
