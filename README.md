@@ -7,6 +7,10 @@ Mac・手元の全gitリポジトリ・GitHub・Vercelと公開サイト・ク�
 
 ![見本データのレポート](docs/report-demo.png)
 
+> **Claude Code・Codex をマスターしたい方へ**　非エンジニア向けハンズオン講座（講義5時間25分・資料180ページ・Skill配布キット付き）のアーカイブを note で公開しています → [note を見る](https://note.com/chaen_channel/n/na50320645814)
+>
+> **法人の方へ**　会社全体のセキュリティを一度プロに見てほしい場合は、株式会社デジライズのセキュリティ診断からご相談ください → [法人のご相談はこちら](https://security.digirise.ai/?utm_source=github&utm_medium=readme&utm_campaign=security-scan-oss#consult)
+
 ## なぜ作ったか
 
 最近の情報漏えいは、高度な攻撃より「うっかり」から起きています。
@@ -103,6 +107,11 @@ bash ~/.claude/skills/security-scan/scripts/install-schedule.sh   # 毎週月曜
 
 オープンソースです。「このクラウドにも対応してほしい」「この検査は誤検知が多い」「こういう漏えいの入口も見たい」など、
 Issue・Pull Request で気軽に提案してください。手順は [CONTRIBUTING.md](CONTRIBUTING.md) にあります。
+
+## もっと使いこなしたい方・法人の方へ
+
+- **Claude Code・Codex をマスターするなら**：このスキルの作り方（Skill・hooks・CLAUDE.md / AGENTS.md の設定）まで学べるハンズオン講座のアーカイブ → [note](https://note.com/chaen_channel/n/na50320645814)
+- **法人のセキュリティのご相談**：サイトの無料診断から、詳しい診断・対策・AIセキュリティ教育まで → [デジライズ セキュリティ診断（ご相談フォーム）](https://security.digirise.ai/?utm_source=github&utm_medium=readme&utm_campaign=security-scan-oss#consult)
 
 ## ライセンス
 
